@@ -19,7 +19,7 @@ export async function GET() {
     });
 
     const uniqueDates = Array.from(
-      new Set(allStudyLogs.map(log => log.createdAt.toISOString().split('T')[0]))
+      new Set(allStudyLogs.map((log: any) => log.createdAt.toISOString().split('T')[0]))
     );
 
     let streak = 0;
