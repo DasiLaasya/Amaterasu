@@ -1,0 +1,226 @@
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String          @id @default(uuid())
+  email         String          @unique
+  passwordHash  String
+  name          String
+  role          String          @default("STUDENT") // STUDENT, ADMIN
+  avatarUrl     String?
+  targetExams   String          @default("[]") // JSON array of Exam IDs
+  streak        Int             @default(0)
+  lastActive    DateTime        @default(now())
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  
+  testSessions  TestSession[]
+  bookmarks     Bookmark[]
+  flashcards    Flashcard[]
+  revisionNotes RevisionNote[]
+  progress      UserProgress[]
+  chatSessions  ChatSession[]
+  notifications Notification[]
+  studyLogs     StudyLog[]
+}
+
+model Exam {
+  id          String     @id @default(uuid())
+  name        String     @unique
+  code        String     @unique
+  category    String     // e.g., Tech, Government, Entrance
+  description String
+  icon        String     // Lucide icon name
+  subjects    Subject[]
+  mockTests   MockTest[]
+}
+
+model Subject {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  examId      String
+  exam        Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  topics      Topic[]
+
+  @@unique([examId, name])
+}
+
+model Topic {
+  id            String         @id @default(uuid())
+  name          String
+  description   String
+  subjectId     String
+  subject       Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  lessons       Lesson[]
+  questions     Question[]
+  flashcards    Flashcard[]
+  revisionNotes RevisionNote[]
+  progress      UserProgress[]
+
+  @@unique([subjectId, name])
+}
+
+model Lesson {
+  id        String   @id @default(uuid())
+  title     String
+  content   String   // Markdown content
+  type      String   @default("TEXT") // TEXT, VIDEO, PDF
+  fileUrl   String?  // URL for PDFs/videos
+  topicId   String
+  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  order     Int      @default(0)
+}
+
+model Question {
+  id              String               @id @default(uuid())
+  text            String
+  type            String               @default("MCQ") // MCQ, CODING
+  difficulty      String               @default("MEDIUM") // EASY, MEDIUM, HARD
+  topicId         String
+  topic           Topic                @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  explanation     String?
+  codeTemplate    String?              // Boilerplate for coding exercises
+  testCases       String?              // JSON array of inputs/outputs
+  editorial       String?              // Explanation of coding solution
+  companyTags     String               @default("[]") // JSON array of companies
+  options         QuestionOption[]
+  bookmarks       Bookmark[]
+  sessionAnswers  TestSessionAnswer[]
+}
+
+model QuestionOption {
+  id         String   @id @default(uuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  text       String
+  isCorrect  Boolean  @default(false)
+}
+
+model MockTest {
+  id            String        @id @default(uuid())
+  title         String
+  description   String
+  duration      Int           // Duration in minutes
+  examId        String
+  exam          Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  questionsJson String        // JSON array of question IDs
+  sessions      TestSession[]
+}
+
+model TestSession {
+  id           String              @id @default(uuid())
+  userId       String
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mockTestId   String
+  mockTest     MockTest            @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+  status       String              @default("ONGOING") // ONGOING, COMPLETED
+  score        Float               @default(0.0)
+  timeSpent    Int                 @default(0) // time spent in seconds
+  startedAt    DateTime            @default(now())
+  completedAt  DateTime?
+  answers      TestSessionAnswer[]
+}
+
+model TestSessionAnswer {
+  id               String      @id @default(uuid())
+  sessionId        String
+  session          TestSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questionId       String
+  question         Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOptionId String?     // Chosen MCQ option ID
+  submittedCode    String?     // Code submitted for coding question
+  isCorrect        Boolean     @default(false)
+  isBookmarked     Boolean     @default(false)
+}
+
+model Bookmark {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, questionId])
+}
+
+model Flashcard {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  front       String
+  back        String
+  topicId     String
+  topic       Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  nextReview  DateTime @default(now())
+  interval    Int      @default(1) // SuperMemo interval (days)
+  easeFactor  Float    @default(2.5) // SuperMemo ease factor
+  repetitions Int      @default(0) // SuperMemo repetitions
+}
+
+model RevisionNote {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  content   String   // Markdown content
+  topicId   String
+  topic     Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model UserProgress {
+  id                 String   @id @default(uuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topicId            String
+  topic              Topic    @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  completedLessons   String   @default("[]") // JSON array of completed lesson IDs
+  masteryScore       Int      @default(0) // 0 to 100 based on quiz completion
+  updatedAt          DateTime @updatedAt
+
+  @@unique([userId, topicId])
+}
+
+model ChatSession {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  messages  String   @default("[]") // JSON array of chat messages
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String
+  type      String   // REMINDER, COUNTDOWN, ACHIEVEMENT, ANNOUNCEMENT
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model StudyLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topicId   String?
+  seconds   Int
+  createdAt DateTime @default(now())
+}
+
+model VectorChunk {
+  id         String   @id @default(uuid())
+  docId      String
+  sourceName String
+  title      String
+  content    String
+  vectorJson String   // JSON representation of floats for similarity matching
+}
