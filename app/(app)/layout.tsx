@@ -62,7 +62,7 @@ export default async function AppLayout({
       orderBy: { createdAt: 'desc' },
       take: 10,
     });
-    notifications = notificationsDb.map(n => ({
+    notifications = notificationsDb.map((n: any) => ({
       id: n.id,
       message: n.message,
       type: n.type,
