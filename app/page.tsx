@@ -8,45 +8,73 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 // Server Action: Login
 async function login(formData: FormData) {
   'use server'
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+    if (!supabaseUrl || !supabaseKey) {
+      return redirect(`/?error=${encodeURIComponent('Supabase configuration variables are missing. Please add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your Vercel settings.')}`)
+    }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: email,
-    password: password,
-  })
-  if (error) {
-    redirect(`/?error=${encodeURIComponent(error.message)}`)
+    const email = formData.get('email') as string
+    const password = formData.get('password') as string
+    const cookieStore = await cookies()
+    const supabase = createClient(cookieStore)
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password,
+    })
+    if (error) {
+      return redirect(`/?error=${encodeURIComponent(error.message)}`)
+    }
+    revalidatePath('/dashboard')
+    return redirect('/dashboard')
+  } catch (error: any) {
+    if (error.message === 'NEXT_REDIRECT' || (error.digest && error.digest.startsWith('NEXT_REDIRECT'))) {
+      throw error;
+    }
+    console.error('Login action failed:', error);
+    return redirect(`/?error=${encodeURIComponent(error.message || 'An unexpected server error occurred.')}`)
   }
-  revalidatePath('/dashboard')
-  redirect('/dashboard')
 }
 
 // Server Action: Signup
 async function signup(formData: FormData) {
   'use server'
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+    if (!supabaseUrl || !supabaseKey) {
+      return redirect(`/?error=${encodeURIComponent('Supabase configuration variables are missing. Please add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your Vercel settings.')}`)
+    }
 
-  const { data, error } = await supabase.auth.signUp({
-    email: email,
-    password: password,
-  })
-  if (error) {
-    redirect(`/?error=${encodeURIComponent(error.message)}`)
+    const email = formData.get('email') as string
+    const password = formData.get('password') as string
+    const cookieStore = await cookies()
+    const supabase = createClient(cookieStore)
+
+    const { data, error } = await supabase.auth.signUp({
+      email: email,
+      password: password,
+    })
+    if (error) {
+      return redirect(`/?error=${encodeURIComponent(error.message)}`)
+    }
+    
+    if (data?.session) {
+      revalidatePath('/dashboard')
+      return redirect('/dashboard')
+    }
+    
+    revalidatePath('/')
+    return redirect('/?message=Registration+successful.+Check+your+email+to+confirm+your+account.')
+  } catch (error: any) {
+    if (error.message === 'NEXT_REDIRECT' || (error.digest && error.digest.startsWith('NEXT_REDIRECT'))) {
+      throw error;
+    }
+    console.error('Signup action failed:', error);
+    return redirect(`/?error=${encodeURIComponent(error.message || 'An unexpected server error occurred.')}`)
   }
-  
-  if (data?.session) {
-    revalidatePath('/dashboard')
-    redirect('/dashboard')
-  }
-  
-  revalidatePath('/')
-  redirect('/?message=Registration+successful.+Check+your+email+to+confirm+your+account.')
 }
 
 export default async function Page({
@@ -56,9 +84,20 @@ export default async function Page({
 }) {
   const params = await searchParams
   const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
+  
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
-  const { data: { user } } = await supabase.auth.getUser()
+  let user = null
+  if (supabaseUrl && supabaseKey) {
+    try {
+      const supabase = createClient(cookieStore)
+      const { data } = await supabase.auth.getUser()
+      user = data?.user
+    } catch (e) {
+      console.error('Error fetching Supabase user in Page:', e)
+    }
+  }
 
   // Authenticated: Route directly to the analysis engine
   if (user) {
